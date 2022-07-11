@@ -1,7 +1,12 @@
 [package]
 name = "minecraft-console-client"
 version = "0.1.0"
+authors = ["OverHash <46231745+OverHash@users.noreply.github.com>"]
 edition = "2021"
+description = "A programmable Minecraft console client, written in Rust."
+homepage = "https://github.com/OverHash/minecraft-console-client"
+repository = "https://github.com/OverHash/minecraft-console-client"
+license = "CDDL-1.0"
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json"] }
