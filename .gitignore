@@ -1,2 +1,7 @@
 /target
 .vscode/
+
+# Program generated files
+config.toml
+cache.toml
+
