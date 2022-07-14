@@ -3,6 +3,8 @@ mod authentication;
 mod cache;
 mod config;
 
+use std::io;
+
 use reqwest::Client;
 
 #[tokio::main]
@@ -22,13 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // get minecraft token
     let authenticate_cache = if fs_cache_exists { Some(&cache) } else { None };
-    let authenticate_result = authentication::authenticate(client, authenticate_cache).await?;
+    let authenticate_result =
+        authentication::authenticate(&client, io::stdin().lock(), authenticate_cache).await?;
     let token = authenticate_result.minecraft_token;
 
     match authenticate_result.retrieve_type {
         authentication::RetrieveType::FromCache => (),
         authentication::RetrieveType::FromUserLogin {
-            microsoft_token,
+            microsoft_refresh_token,
             expires_in,
         } => {
             if config.cache_enabled {
@@ -37,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     token.clone(),
                     chrono::Utc::now() + chrono::Duration::seconds(i64::from(expires_in)),
                 )?;
-                cache.save_microsoft_token(microsoft_token)?;
+                cache.save_microsoft_refresh_token(microsoft_refresh_token)?;
             }
         }
     }

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    fs,
-    io::{self, Write},
+    io::{self, BufRead, Write},
 };
 
 use reqwest::Client;
@@ -15,7 +14,7 @@ const CLIENT_ID: &str = "54473e32-df8f-42e9-a649-9419b0dab9d3";
 
 /// The response from authenticating with Microsoft OAuth flow
 #[derive(Deserialize, Serialize)]
-struct AuthorizationTokenResponse {
+struct MicrosoftTokenAuthorizeResponse {
     /// The type of token for authentication
     token_type: String,
     /// The scope we have access to
@@ -77,17 +76,52 @@ pub struct TokenResult {
 pub enum RetrieveType {
     FromCache,
     FromUserLogin {
-        microsoft_token: String,
+        microsoft_refresh_token: String,
         expires_in: u32,
     },
 }
 
+async fn microsoft_authenticate_token<T>(
+    client: &Client,
+    data: T,
+) -> Result<MicrosoftTokenAuthorizeResponse, Box<dyn std::error::Error>>
+where
+    T: Serialize + Sized,
+{
+    let authorization_token = client
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+        .form(&data)
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(authorization_token)
+}
+
+fn get_auth_code<R>(mut reader: R) -> Result<String, Box<dyn std::error::Error>>
+where
+    R: BufRead,
+{
+    print!("Authorization code: ");
+    io::stdout().flush()?;
+
+    let mut buffer = String::new();
+    reader.read_line(&mut buffer)?;
+
+    Ok(buffer)
+}
+
 /// Attempts to authenticate with Mojang and Minecraft servers, using the current cache if it exists.
 /// Returns the Minecraft token.
-pub async fn authenticate(
-    client: Client,
+pub async fn authenticate<R>(
+    client: &Client,
+    reader: R,
     cache: Option<&Cache>,
-) -> Result<TokenResult, Box<dyn std::error::Error>> {
+) -> Result<TokenResult, Box<dyn std::error::Error>>
+where
+    R: BufRead,
+{
     // if the cache exists, let's check to see if the minecraft token has expired or not
     if let Some(cache) = cache {
         let cached_token = cache.get_minecraft_token();
@@ -103,57 +137,38 @@ pub async fn authenticate(
         println!("Cached token was invalid, generating a new token...");
     }
 
-    // step 1: attempt to login to microsoft account (OAuth flow)
-    // requires authorization from the user
-    println!("Generating login page...");
-    let login_html = client
-        .get("https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize")
-        .form(&vec![
-            ("client_id", CLIENT_ID),
-            ("response_type", "code"),
-            ("scope", "XboxLive.signin%20offline_access"),
-        ])
-        .send()
+    // step 1: get authorization token
+    // if the cache exists, we can use the microsoft `refresh_token` to skip user authorization again
+    let authorization_token = if let Some(cache) = cache {
+        microsoft_authenticate_token(
+            client,
+            vec![
+                ("client_id", CLIENT_ID),
+                ("refresh_token", cache.get_microsoft_refresh_token()),
+                ("grant_type", "refresh_token"),
+                ("redirect_uri", "https://mccteam.github.io/redirect.html"),
+            ],
+        )
         .await?
-        .text()
-        .await?;
+    } else {
+        // attempt to login to microsoft account (OAuth flow)
+        // requires authorization from the user
+        println!("Please login with your Microsoft account in the following link and retrieve the authorization code: https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id={client_id}&response_type=code&scope=XboxLive.signin%20offline_access", client_id=CLIENT_ID);
 
-    // save html to user and tell them to open it
-    fs::write("index.html", login_html)?;
-    println!("Saved login page to index.html, please open the file and enter the token generated");
+        // retrieve the code from them the user
+        let code = get_auth_code(reader)?;
 
-    // retrieve the code from them the user
-    let code = {
-        let mut buffer = String::new();
-
-        print!("Authorization code: ");
-        io::stdout().flush()?;
-        io::stdin().read_line(&mut buffer)?;
-        buffer
+        microsoft_authenticate_token(
+            client,
+            vec![
+                ("client_id", CLIENT_ID),
+                ("code", &code),
+                ("grant_type", "authorization_code"),
+                ("redirect_uri", "https://mccteam.github.io/redirect.html"),
+            ],
+        )
+        .await?
     };
-
-    // step 2: convert authorization code into authorization token
-    let authorization_token = client
-        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
-        .form(&vec![
-            ("client_id", CLIENT_ID),
-            ("code", &code),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", "https://mccteam.github.io/redirect.html"),
-        ])
-        .send()
-        .await?
-        .json::<AuthorizationTokenResponse>()
-        .await?;
-
-    println!("Access token: {:?}", &authorization_token.access_token);
-    fs::write(
-        "authorization_token.json",
-        serde_json::to_string_pretty(&authorization_token)?,
-    )?;
-
-    let authorization_token: AuthorizationTokenResponse =
-        serde_json::from_slice(&fs::read("authorization_token.json")?)?;
 
     // step 3: authenticate with xbox live
     let xbox_authenticate_json = json!({
@@ -165,7 +180,6 @@ pub async fn authenticate(
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
     });
-    println!("{:#?}", xbox_authenticate_json);
 
     let xbox_resp: XboxLiveAuthenticationResponse = client
         .post("https://user.auth.xboxlive.com/user/authenticate")
@@ -174,12 +188,9 @@ pub async fn authenticate(
         .await?
         .json()
         .await?;
-    fs::write("xbox_token.json", serde_json::to_string_pretty(&xbox_resp)?)?;
 
     let xbox_token = &xbox_resp.token;
     let user_hash = &xbox_resp.display_claims["xui"][0]["uhs"];
-
-    println!("{:#?}", xbox_resp);
 
     // step 4: convert xbox token into xbox security token
     let xbox_security_token_resp: XboxLiveAuthenticationResponse = client
@@ -196,14 +207,6 @@ pub async fn authenticate(
         .await?
         .json()
         .await?;
-    fs::write(
-        "xbox_security_token.json",
-        serde_json::to_string_pretty(&xbox_security_token_resp)?,
-    )?;
-
-    let xbox_security_token = &xbox_security_token_resp.token;
-
-    println!("{:#?}", xbox_security_token_resp);
 
     // step 5: authenticate with minecraft
     let minecraft_resp: MinecraftAuthenticationResponse = client
@@ -213,40 +216,18 @@ pub async fn authenticate(
                 format!(
                     "XBL3.0 x={user_hash};{xsts_token}",
                     user_hash = user_hash,
-                    xsts_token = xbox_security_token
+                    xsts_token = xbox_security_token_resp.token
                 )
         }))
         .send()
         .await?
         .json()
         .await?;
-    fs::write(
-        "minecraft_token.json",
-        serde_json::to_string(&minecraft_resp)?,
-    )?;
-
-    let minecraft_token = minecraft_resp.access_token.clone();
-    println!("{:#?}", minecraft_resp);
-
-    // step 6: retrieve the users profile using the minecraft token
-    let minecraft_profile_resp: MinecraftProfileResponse = client
-        .get("https://api.minecraftservices.com/minecraft/profile")
-        .bearer_auth(minecraft_token.clone())
-        .send()
-        .await?
-        .json()
-        .await?;
-    fs::write(
-        "minecraft_profile.json",
-        serde_json::to_string(&minecraft_profile_resp)?,
-    )?;
-
-    println!("{:#?}", minecraft_profile_resp);
 
     Ok(TokenResult {
-        minecraft_token,
+        minecraft_token: minecraft_resp.access_token,
         retrieve_type: RetrieveType::FromUserLogin {
-            microsoft_token: authorization_token.access_token,
+            microsoft_refresh_token: authorization_token.refresh_token,
             expires_in: authorization_token.expires_in,
         },
     })

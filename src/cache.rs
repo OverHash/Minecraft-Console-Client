@@ -9,7 +9,7 @@ const CACHE_PATH: &str = "cache.toml";
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct Cache {
     /// The microsoft token
-    microsoft_token: String,
+    microsoft_refresh_token: String,
 
     /// The minecraft token
     minecraft_token: CachedSessionToken,
@@ -54,13 +54,18 @@ impl Cache {
         Ok(())
     }
 
-    /// Saves a new Microsoft token to the cache
-    pub fn save_microsoft_token(
+    /// Retrieves the inner microsoft refresh token.
+    pub fn get_microsoft_refresh_token(&self) -> &str {
+        &self.microsoft_refresh_token
+    }
+
+    /// Saves a new Microsoft refresh token to the cache
+    pub fn save_microsoft_refresh_token(
         &mut self,
         token: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // write and save
-        self.microsoft_token = token;
+        self.microsoft_refresh_token = token;
         self.save()?;
 
         Ok(())
@@ -70,7 +75,7 @@ impl Cache {
 impl std::default::Default for Cache {
     fn default() -> Self {
         Self {
-            microsoft_token: "".to_string(),
+            microsoft_refresh_token: "".to_string(),
             minecraft_token: CachedSessionToken {
                 token: "".to_string(),
                 expiry_time: toml_edit::Datetime::from_str("2011-11-18T12:00:00Z").unwrap(),
@@ -82,7 +87,10 @@ impl std::default::Default for Cache {
 impl std::fmt::Debug for Cache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cache")
-            .field("microsoft_token", &"X".repeat(self.microsoft_token.len()))
+            .field(
+                "microsoft_refresh_token",
+                &"X".repeat(self.microsoft_refresh_token.len()),
+            )
             .field("minecraft_token", &self.minecraft_token)
             .finish()
     }
