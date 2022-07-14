@@ -114,18 +114,15 @@ impl CachedSessionToken {
         let token = &self.token;
 
         let expiry_time: DateTime<chrono::Utc> =
-            chrono::DateTime::from_str(&self.expiry_time.to_string()).unwrap_or_else(|_| {
-                panic!(
-                    "Failed to parse expiry time '{}'",
-                    self.expiry_time.to_string()
-                )
-            });
+            chrono::DateTime::from_str(&self.expiry_time.to_string())
+                .unwrap_or_else(|_| panic!("Failed to parse expiry time '{}'", self.expiry_time));
 
         // if expiry_time > current_time, then we have not expired
         // and should return the token
-        match expiry_time > chrono::Utc::now() {
-            true => Some(token.clone()),
-            false => None,
+        if expiry_time > chrono::Utc::now() {
+            Some(token.clone())
+        } else {
+            None
         }
     }
 }

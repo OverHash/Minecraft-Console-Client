@@ -69,12 +69,12 @@ struct MinecraftProfileResponse {
     name: String,
 }
 
-pub struct AuthenticationResult {
+pub struct TokenResult {
     pub minecraft_token: String,
-    pub retrieve_type: AuthenticationRetrieveType,
+    pub retrieve_type: RetrieveType,
 }
 
-pub enum AuthenticationRetrieveType {
+pub enum RetrieveType {
     FromCache,
     FromUserLogin {
         microsoft_token: String,
@@ -87,20 +87,20 @@ pub enum AuthenticationRetrieveType {
 pub async fn authenticate(
     client: Client,
     cache: Option<&Cache>,
-) -> Result<AuthenticationResult, Box<dyn std::error::Error>> {
+) -> Result<TokenResult, Box<dyn std::error::Error>> {
     // if the cache exists, let's check to see if the minecraft token has expired or not
     if let Some(cache) = cache {
         let cached_token = cache.get_minecraft_token();
 
         if let Some(token) = cached_token {
             println!("Cached token was valid!");
-            return Ok(AuthenticationResult {
+            return Ok(TokenResult {
                 minecraft_token: token,
-                retrieve_type: AuthenticationRetrieveType::FromCache,
+                retrieve_type: RetrieveType::FromCache,
             });
-        } else {
-            println!("Cached token was invalid, generating a new token...");
         }
+
+        println!("Cached token was invalid, generating a new token...");
     }
 
     // step 1: attempt to login to microsoft account (OAuth flow)
@@ -243,9 +243,9 @@ pub async fn authenticate(
 
     println!("{:#?}", minecraft_profile_resp);
 
-    Ok(AuthenticationResult {
+    Ok(TokenResult {
         minecraft_token,
-        retrieve_type: AuthenticationRetrieveType::FromUserLogin {
+        retrieve_type: RetrieveType::FromUserLogin {
             microsoft_token: authorization_token.access_token,
             expires_in: authorization_token.expires_in,
         },

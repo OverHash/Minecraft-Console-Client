@@ -18,7 +18,7 @@ impl std::default::Default for Config {
     }
 }
 
-pub fn get_config() -> Result<Config, Box<dyn std::error::Error>> {
+pub fn get() -> Result<Config, Box<dyn std::error::Error>> {
     let config = match fs::read_to_string(CONFIG_PATH) {
         Ok(config) => toml_edit::easy::from_str(&config)?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
