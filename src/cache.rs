@@ -118,6 +118,16 @@ impl CachedSessionToken {
     }
 
     /// Retrieves the inner minecraft token, and if it valid
+    /// ```rust
+    /// # use minecraft_console_client::cache::CachedSessionToken;
+    /// # use std::str::FromStr;
+    /// let expired_session = CachedSessionToken::new("secret_token".to_string(), chrono::Utc::now())?;
+    /// assert_eq!(expired_session.get_token(), None);
+    ///
+    /// let valid_session = CachedSessionToken::new("secret_token".to_string(), chrono::DateTime::from_str("2100-01-01T12:00:00Z")?)?;
+    /// assert_eq!(valid_session.get_token(), Some("secret_token".to_string()));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn get_token(&self) -> Option<String> {
         let token = &self.token;
 
