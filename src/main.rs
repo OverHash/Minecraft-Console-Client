@@ -2,6 +2,7 @@
 mod authentication;
 mod cache;
 mod config;
+mod get_server_info;
 
 use std::io;
 
@@ -46,6 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("Got authentication token: {}", token);
+    // retrieve server version
+    get_server_info::get_server_info(config.server_url).await?;
 
     Ok(())
 }

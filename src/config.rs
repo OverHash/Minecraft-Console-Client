@@ -8,12 +8,15 @@ const CONFIG_PATH: &str = "config.toml";
 pub struct Config {
     /// If caching is enabled for disk storage
     pub cache_enabled: bool,
+    /// The address of the server
+    pub server_url: String,
 }
 
 impl std::default::Default for Config {
     fn default() -> Self {
         Self {
             cache_enabled: true,
+            server_url: String::from("localhost:25565"),
         }
     }
 }
