@@ -3,6 +3,7 @@ mod authentication;
 mod cache;
 mod config;
 mod get_server_info;
+mod protocol;
 
 use std::io;
 

@@ -3,17 +3,19 @@ use tokio::{
     net::TcpStream,
 };
 
+use crate::protocol::encoding::VarInt;
+
 /// Retrieves some information about a server
 pub async fn get_server_info(server_address: String) -> Result<(), Box<dyn std::error::Error>> {
     let mut stream = TcpStream::connect(server_address).await?;
     let socket_addr = stream.local_addr()?;
 
     // write handshake (0x00 packet ID)
-    let packet_id = get_var_int(0);
-    let protocol_version = get_var_int(-1);
+    let packet_id: VarInt = 0.into();
+    let protocol_version: VarInt = (-1).into();
     let server_addr = get_string(&socket_addr.ip().to_string());
     let server_port = socket_addr.port().to_be_bytes();
-    let next_state = get_var_int(1);
+    let next_state: VarInt = 1.into();
 
     let packet = &[
         packet_id.as_slice(),
@@ -24,20 +26,17 @@ pub async fn get_server_info(server_address: String) -> Result<(), Box<dyn std::
     ]
     .concat();
 
+    let packet_len: VarInt = (packet.len() as i32).into();
+
     stream
-        .write_all(&[&get_var_int(packet.len() as i32), packet.as_slice()].concat())
+        .write_all(&[packet_len.as_slice(), packet.as_slice()].concat())
         .await?;
 
     // follow up with status request packet (0x00)
-    let status_request = get_var_int(0);
+    let status_request: VarInt = 0.into();
+    let status_request_len: VarInt = (status_request.as_slice().len() as i32).into();
     stream
-        .write_all(
-            &[
-                &get_var_int(status_request.len() as i32),
-                status_request.as_slice(),
-            ]
-            .concat(),
-        )
+        .write_all(&[status_request_len.as_slice(), status_request.as_slice()].concat())
         .await?;
 
     // read response packet
@@ -48,19 +47,9 @@ pub async fn get_server_info(server_address: String) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn get_var_int(mut param_int: i32) -> Vec<u8> {
-    let mut bytes = Vec::new();
-
-    while (param_int & -128) != 0 {
-        bytes.push((param_int & 127 | 128) as u8);
-        param_int = ((param_int as u32) >> 7) as i32;
-    }
-    bytes.push(param_int as u8);
-
-    bytes
-}
-
 fn get_string(string: &str) -> Vec<u8> {
     let bytes = string.as_bytes();
-    [&get_var_int(bytes.len() as i32), bytes].concat()
+    let bytes_len: VarInt = (bytes.len() as i32).into();
+
+    [bytes_len.as_slice(), bytes].concat()
 }
