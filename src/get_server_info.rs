@@ -8,7 +8,7 @@ use crate::protocol::encoding::VarInt;
 /// Retrieves some information about a server
 pub async fn get_server_info(server_address: String) -> Result<(), Box<dyn std::error::Error>> {
     let mut stream = TcpStream::connect(server_address).await?;
-    let socket_addr = stream.local_addr()?;
+    let socket_addr = stream.peer_addr()?;
 
     // write handshake (0x00 packet ID)
     let packet_id: VarInt = 0.into();
