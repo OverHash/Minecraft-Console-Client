@@ -78,7 +78,8 @@ impl std::default::Default for Cache {
             microsoft_refresh_token: "".to_string(),
             minecraft_token: CachedSessionToken {
                 token: "".to_string(),
-                expiry_time: toml_edit::Datetime::from_str("2011-11-18T12:00:00Z").unwrap(),
+                expiry_time: toml_edit::Datetime::from_str("2011-11-18T12:00:00Z")
+                    .expect("Failed to create DateTime"),
             },
         }
     }
