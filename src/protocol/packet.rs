@@ -9,7 +9,7 @@ pub struct Packet {
 
 impl Packet {
     /// Creates a new packet with the given `id` and `data` fields.
-    pub fn new(id: i32, data: Vec<u8>) -> Self {
+    pub fn new<T: Into<VarInt>>(id: T, data: Vec<u8>) -> Self {
         Self {
             id: id.into(),
             data,
