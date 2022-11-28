@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 const CONFIG_PATH: &str = "config.toml";
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     /// If caching is enabled for disk storage
     pub cache_enabled: bool,

@@ -6,7 +6,7 @@ use toml_edit::Datetime;
 
 const CACHE_PATH: &str = "cache.toml";
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub struct Cache {
     /// The microsoft token
     microsoft_refresh_token: String,
@@ -75,9 +75,9 @@ impl Cache {
 impl std::default::Default for Cache {
     fn default() -> Self {
         Self {
-            microsoft_refresh_token: "".to_string(),
+            microsoft_refresh_token: String::new(),
             minecraft_token: CachedSessionToken {
-                token: "".to_string(),
+                token: String::new(),
                 expiry_time: toml_edit::Datetime::from_str("2011-11-18T12:00:00Z")
                     .expect("Failed to create DateTime"),
             },
@@ -97,7 +97,7 @@ impl std::fmt::Debug for Cache {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub struct CachedSessionToken {
     /// The token itself
     pub token: String,
